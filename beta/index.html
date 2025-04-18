@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Temp Mail</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    .email-box, .controls {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #5a67d8;
+      color: #fff;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #434190;
+    }
+    .message-preview {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #f9f9f9;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+    }
+    .modal-content {
+      background: white;
+      margin: 100px auto;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 600px;
+    }
+    .modal-close {
+      float: right;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    #emailLabel {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="email-box">
+      <button onclick="generateEmail()">Новая почта</button>
+      <p id="emailLabel">Ваш временный email:</p>
+      <p id="emailDisplay"></p>
+    </div>
+
+    <div class="controls">
+      <button onclick="fetchMessages()">Обновить письма вручную</button>
+      <button onclick="startAutoRefresh()">Автообновление</button>
+      <button onclick="stopAutoRefresh()">Остановить авто</button>
+    </div>
+
+    <div class="messages" id="messages"></div>
+  </div>
+
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close" onclick="closeModal()">&times;</span>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    let currentEmail = ''
+    let refreshInterval = null
+
+    async function generateEmail() {
+      const res = await fetch('https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1')
+      const data = await res.json()
+      currentEmail = data[0]
+      document.getElementById('emailDisplay').innerText = currentEmail
+      fetchMessages()
+    }
+
+    async function fetchMessages() {
+      if (!currentEmail) return
+      const [login, domain] = currentEmail.split('@')
+      const res = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${login}&domain=${domain}`)
+      const messages = await res.json()
+      const box = document.getElementById('messages')
+      box.innerHTML = ''
+      for (let msg of messages) {
+        const div = document.createElement('div')
+        div.className = 'message-preview'
+        div.innerHTML = `
+          <div>
+            <strong>${msg.from}</strong><br>
+            <em>${msg.subject}</em>
+          </div>
+          <button onclick="showMessage('${login}', '${domain}', ${msg.id})">👁️</button>
+        `
+        box.appendChild(div)
+      }
+    }
+
+    async function showMessage(login, domain, id) {
+      const res = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${login}&domain=${domain}&id=${id}`)
+      const data = await res.json()
+      document.getElementById('modalBody').innerHTML = `
+        <h3>${data.subject}</h3>
+        <p><strong>От:</strong> ${data.from}</p>
+        <div>${data.textBody || '(Нет текста)'}</div>
+      `
+      document.getElementById('modal').style.display = 'block'
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none'
+    }
+
+    function startAutoRefresh() {
+      if (!refreshInterval) refreshInterval = setInterval(fetchMessages, 10000)
+    }
+
+    function stopAutoRefresh() {
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+        refreshInterval = null
+      }
+    }
+  </script>
+</body>
+</html>

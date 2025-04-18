@@ -103,18 +103,20 @@
     let refreshInterval = null
 
     async function generateEmail() {
-      const res = await fetch('https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1')
+      const res = await fetch('https://api.guerrillamail.com/ajax.php?f=get_email_address')
       const data = await res.json()
-      currentEmail = data[0]
+      currentEmail = data.email_addr
+      sessionStorage.setItem('sid_token', data.sid_token)
       document.getElementById('emailDisplay').innerText = currentEmail
       fetchMessages()
     }
 
     async function fetchMessages() {
       if (!currentEmail) return
-      const [login, domain] = currentEmail.split('@')
-      const res = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${login}&domain=${domain}`)
-      const messages = await res.json()
+      const sidToken = sessionStorage.getItem('sid_token')
+      const res = await fetch(`https://api.guerrillamail.com/ajax.php?f=get_email_list&sid_token=${sidToken}&offset=0`) 
+      const json = await res.json()
+      const messages = json.list || []
       const box = document.getElementById('messages')
       box.innerHTML = ''
       for (let msg of messages) {
@@ -122,22 +124,23 @@
         div.className = 'message-preview'
         div.innerHTML = `
           <div>
-            <strong>${msg.from}</strong><br>
-            <em>${msg.subject}</em>
+            <strong>${msg.mail_from}</strong><br>
+            <em>${msg.mail_subject}</em>
           </div>
-          <button onclick="showMessage('${login}', '${domain}', ${msg.id})">👁️</button>
+          <button onclick="showMessage('${msg.mail_id}')">👁️</button>
         `
         box.appendChild(div)
       }
     }
 
-    async function showMessage(login, domain, id) {
-      const res = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${login}&domain=${domain}&id=${id}`)
+    async function showMessage(id) {
+      const sidToken = sessionStorage.getItem('sid_token')
+      const res = await fetch(`https://api.guerrillamail.com/ajax.php?f=fetch_email&sid_token=${sidToken}&email_id=${id}`)
       const data = await res.json()
       document.getElementById('modalBody').innerHTML = `
-        <h3>${data.subject}</h3>
-        <p><strong>От:</strong> ${data.from}</p>
-        <div>${data.textBody || '(Нет текста)'}</div>
+        <h3>${data.mail_subject}</h3>
+        <p><strong>От:</strong> ${data.mail_from}</p>
+        <div>${data.mail_body || '(Нет текста)'}</div>
       `
       document.getElementById('modal').style.display = 'block'
     }

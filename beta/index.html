@@ -101,35 +101,67 @@
   <script>
     let currentEmail = ''
     let refreshInterval = null
+    let activeAPI = ''
+
+    const apis = ['guerrilla', 'tempmail']
 
     async function generateEmail() {
-      const res = await fetch('https://api.guerrillamail.com/ajax.php?f=get_email_address')
-      const data = await res.json()
-      currentEmail = data.email_addr
-      sessionStorage.setItem('sid_token', data.sid_token)
+      activeAPI = apis[Math.floor(Math.random() * apis.length)]
+
+      if (activeAPI === 'guerrilla') {
+        const res = await fetch('https://api.guerrillamail.com/ajax.php?f=get_email_address')
+        const data = await res.json()
+        currentEmail = data.email_addr
+        sessionStorage.setItem('sid_token', data.sid_token)
+      } else {
+        const res = await fetch('https://api.temp-mail.org/request/domains/format/json')
+        const domains = await res.json()
+        const randomUser = Math.random().toString(36).substring(2, 11)
+        currentEmail = randomUser + domains[0]
+        sessionStorage.setItem('temp_email', currentEmail)
+      }
       document.getElementById('emailDisplay').innerText = currentEmail
       fetchMessages()
     }
 
     async function fetchMessages() {
       if (!currentEmail) return
-      const sidToken = sessionStorage.getItem('sid_token')
-      const res = await fetch(`https://api.guerrillamail.com/ajax.php?f=get_email_list&sid_token=${sidToken}&offset=0`) 
-      const json = await res.json()
-      const messages = json.list || []
       const box = document.getElementById('messages')
       box.innerHTML = ''
-      for (let msg of messages) {
-        const div = document.createElement('div')
-        div.className = 'message-preview'
-        div.innerHTML = `
-          <div>
-            <strong>${msg.mail_from}</strong><br>
-            <em>${msg.mail_subject}</em>
-          </div>
-          <button onclick="showMessage('${msg.mail_id}')">👁️</button>
-        `
-        box.appendChild(div)
+
+      if (activeAPI === 'guerrilla') {
+        const sidToken = sessionStorage.getItem('sid_token')
+        const res = await fetch(`https://api.guerrillamail.com/ajax.php?f=get_email_list&sid_token=${sidToken}&offset=0`)
+        const json = await res.json()
+        const messages = json.list || []
+        for (let msg of messages) {
+          const div = document.createElement('div')
+          div.className = 'message-preview'
+          div.innerHTML = `
+            <div>
+              <strong>${msg.mail_from}</strong><br>
+              <em>${msg.mail_subject}</em>
+            </div>
+            <button onclick="showMessage('${msg.mail_id}')">👁️</button>
+          `
+          box.appendChild(div)
+        }
+      } else if (activeAPI === 'tempmail') {
+        const hash = await getMD5(currentEmail)
+        const res = await fetch(`https://api.temp-mail.org/request/mail/id/${hash}/format/json`)
+        const messages = await res.json()
+        for (let msg of messages) {
+          const div = document.createElement('div')
+          div.className = 'message-preview'
+          div.innerHTML = `
+            <div>
+              <strong>${msg.mail_from}</strong><br>
+              <em>${msg.mail_subject}</em>
+            </div>
+            <button onclick='showTempMailMessage(${JSON.stringify(msg)})'>👁️</button>
+          `
+          box.appendChild(div)
+        }
       }
     }
 
@@ -141,6 +173,15 @@
         <h3>${data.mail_subject}</h3>
         <p><strong>От:</strong> ${data.mail_from}</p>
         <div>${data.mail_body || '(Нет текста)'}</div>
+      `
+      document.getElementById('modal').style.display = 'block'
+    }
+
+    function showTempMailMessage(msg) {
+      document.getElementById('modalBody').innerHTML = `
+        <h3>${msg.mail_subject}</h3>
+        <p><strong>От:</strong> ${msg.mail_from}</p>
+        <div>${msg.mail_text || '(Нет текста)'}</div>
       `
       document.getElementById('modal').style.display = 'block'
     }
@@ -158,6 +199,14 @@
         clearInterval(refreshInterval)
         refreshInterval = null
       }
+    }
+
+    async function getMD5(email) {
+      const msgUint8 = new TextEncoder().encode(email)
+      const hashBuffer = await crypto.subtle.digest('MD5', msgUint8)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      return hashHex
     }
   </script>
 </body>

@@ -103,10 +103,12 @@
     let refreshInterval = null
     let activeAPI = ''
 
-    const apis = ['guerrilla', 'tempmail']
+    function getRandomAPI() {
+      return Math.random() < 0.5 ? 'guerrilla' : 'tempmail'
+    }
 
     async function generateEmail() {
-      activeAPI = apis[Math.floor(Math.random() * apis.length)]
+      activeAPI = getRandomAPI()
 
       if (activeAPI === 'guerrilla') {
         const res = await fetch('https://api.guerrillamail.com/ajax.php?f=get_email_address')
@@ -114,7 +116,7 @@
         currentEmail = data.email_addr
         sessionStorage.setItem('sid_token', data.sid_token)
       } else {
-        const res = await fetch('https://api.temp-mail.org/request/domains/format/json')
+        const res = await fetch('https://api.tempmail.so/api/v1/domains')
         const domains = await res.json()
         const randomUser = Math.random().toString(36).substring(2, 11)
         currentEmail = randomUser + domains[0]
@@ -148,7 +150,7 @@
         }
       } else if (activeAPI === 'tempmail') {
         const hash = await getMD5(currentEmail)
-        const res = await fetch(`https://api.temp-mail.org/request/mail/id/${hash}/format/json`)
+        const res = await fetch(`https://tempmail.so/api/v1/mailbox/${hash}`)
         const messages = await res.json()
         for (let msg of messages) {
           const div = document.createElement('div')
